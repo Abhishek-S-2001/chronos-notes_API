@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.database import connect_db, close_db
-from app.routers import notes, analytics
+from app.routers import notes, analytics, users
 
 # --- Lifespan Manager ---
 @asynccontextmanager
@@ -26,6 +26,7 @@ app.add_middleware(
 # --- Include Routers ---
 app.include_router(notes.router)
 app.include_router(analytics.router)
+app.include_router(users.router)
 
 @app.get("/")
 def health_check():

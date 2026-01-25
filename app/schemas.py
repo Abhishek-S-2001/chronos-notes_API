@@ -15,7 +15,7 @@ class NoteCreateRequest(BaseModel):
     sessionID: str
     username: str
     title: str
-    content: str  # <--- NEW: Actually storing the note text now!
+    content: str
     keystrokeLog: List[Keystroke]
     platform: Optional[str] = "Web"
 
