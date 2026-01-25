@@ -1,0 +1,36 @@
+# --- Python Basics ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- Virtual Environments ---
+venv/
+env/
+.env/
+.venv/
+
+# --- Environment Variables (CRITICAL) ---
+# Never commit secrets/API keys
+.env
+.env.local
+.env.*
+
+# --- Distribution / Packaging ---
+build/
+dist/
+*.egg-info/
+
+# --- IDE Settings (Optional but clean) ---
+.vscode/
+.idea/
+*.swp
+
+# --- Mac OS Junk ---
+.DS_Store
+
+# --- Data Files (Don't commit heavy datasets) ---
+# Keep your sample dataset.json if you want, but ignore large ones
+dataset_large.json
+*.csv
+*.pkl
+*.h5
