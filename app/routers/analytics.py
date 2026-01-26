@@ -4,94 +4,77 @@ import math
 
 router = APIRouter(prefix="/api/stats", tags=["Analytics"])
 
-def calculate_histogram(values, step=20, max_val=400):
-    """Converts a list of timings into a percentage distribution"""
-    if not values: 
-        return {i: 0 for i in range(0, max_val, step)}
-    
-    total = len(values)
-    dist = {}
-    for i in range(0, max_val, step):
-        count = sum(1 for x in values if i <= x < i+step)
-        dist[i] = (count / total) * 100
-    return dist
-
-def calculate_deviation(dist1, dist2):
-    """
-    Simple Anomaly Score: Euclidean Distance between two distributions.
-    Returns a score 0.0 (Identical) to 100.0 (Completely Different).
-    """
-    error = 0
-    keys = set(dist1.keys()) | set(dist2.keys())
-    for k in keys:
-        v1 = dist1.get(k, 0)
-        v2 = dist2.get(k, 0)
-        error += (v1 - v2) ** 2
-    return math.sqrt(error)
-
 @router.get("/{username}")
 def get_biometric_stats(username: str, db = Depends(get_db)):
     try:
-        # CRITICAL CHANGE: Query 'biometric_history' instead of 'user_notes'
         bio_collection = db["biometric_history"]
         
-        # Fetch all biometric sessions for this user
-        cursor = bio_collection.find({"username": username}).sort("created_at", -1)
+        # Fetch last 50 sessions (we need a lot of dots for the cloud)
+        cursor = bio_collection.find({"username": username}).sort("created_at", -1).limit(50)
         sessions = list(cursor)
         
         if not sessions:
-             return {"username": username, "chart_data": [], "anomaly_score": 0, "is_anomaly": False}
+             return {"username": username, "radar_data": [], "scatter_data": []}
 
-        # 1. Prepare Data Pools
-        # The "Recent" one is the very last typing session (Edit or Create)
-        recent_session = sessions[0] 
-        history_sessions = sessions[1:]
-
-        recent_dwells = [b["dwellTime"] for b in recent_session.get("biometrics", [])]
+        recent_session = sessions[0].get("biometrics", [])
         
-        # 2. Calculate Individual Histograms (Faint Lines)
-        history_distributions = []
-        all_dwells_combined = [] 
+        # --- 1. Fingerprint Radar (Agility Profile) ---
+        # Calculate Average Dwell Time per Finger for the User's History
+        finger_map = {} # { "L.Pinky": [100, 120, ...], ... }
+        all_fingers = ["L.Pinky", "L.Ring", "L.Mid", "L.Index", "Thumb", "R.Index", "R.Mid", "R.Ring", "R.Pinky"]
 
-        for session in history_sessions:
-            dwells = [b["dwellTime"] for b in session.get("biometrics", [])]
-            if dwells:
-                dist = calculate_histogram(dwells)
-                history_distributions.append(dist)
-                all_dwells_combined.extend(dwells)
+        # Aggregate history data
+        for session in sessions:
+            for b in session.get("biometrics", []):
+                f = b.get("finger", "Other")
+                if f in all_fingers:
+                    if f not in finger_map: finger_map[f] = []
+                    finger_map[f].append(b["dwellTime"])
 
-        # 3. Calculate Average Profile (Bold Blue Line)
-        avg_dist = calculate_histogram(all_dwells_combined)
-        
-        # 4. Calculate Recent Profile (Active Line)
-        recent_dist = calculate_histogram(recent_dwells)
-
-        # 5. Anomaly Detection
-        anomaly_score = calculate_deviation(recent_dist, avg_dist)
-        is_anomaly = anomaly_score > 30.0 
-
-        # 6. Format for Chart
-        chart_data = []
-        ranges = sorted(avg_dist.keys())
-        
-        for r in ranges:
-            point = {
-                "range": r,
-                "Average": round(avg_dist.get(r, 0), 1),
-                "Recent": round(recent_dist.get(r, 0), 1),
-            }
-            # Add faint history points
-            for idx, hist in enumerate(history_distributions[:10]): 
-                point[f"history_{idx}"] = round(hist.get(r, 0), 1)
+        radar_data = []
+        for f in all_fingers:
+            dwells = finger_map.get(f, [])
+            avg_speed = sum(dwells) / len(dwells) if dwells else 0
+            # Invert Logic: Lower Dwell = Higher Agility (Speed)
+            # We map 50ms -> 100 Agility, 200ms -> 0 Agility for visual "Pop"
+            agility_score = max(0, min(100, 150 - avg_speed))
             
-            chart_data.append(point)
+            radar_data.append({
+                "finger": f,
+                "agility": round(agility_score),
+                "avg_dwell": round(avg_speed)
+            })
+
+        # --- 2. Rhythm Cloud (Scatter Plot) ---
+        # X = Flight Time (Reflex), Y = Dwell Time (Press)
+        # We take the last 200 keystrokes from history to form the "Cloud"
+        scatter_data = []
+        
+        # Add History Points (Gray/Faint)
+        for session in sessions[1:5]: # Last 5 sessions
+            for b in session.get("biometrics", []):
+                # Filter outliers for cleaner graph
+                if b["flightTime"] < 500 and b["dwellTime"] < 300:
+                    scatter_data.append({
+                        "x": b["flightTime"],
+                        "y": b["dwellTime"],
+                        "type": "history" 
+                    })
+
+        # Add Recent Points (Colored)
+        for b in recent_session:
+             if b["flightTime"] < 500 and b["dwellTime"] < 300:
+                scatter_data.append({
+                    "x": b["flightTime"],
+                    "y": b["dwellTime"],
+                    "type": "current",
+                    "finger": b.get("finger", "?")
+                })
 
         return {
             "username": username,
-            "dwell_data": chart_data,
-            "flight_data": chart_data, # (Duplicate logic for flight if needed)
-            "anomaly_score": round(anomaly_score, 2),
-            "is_anomaly": is_anomaly
+            "radar_data": radar_data,
+            "scatter_data": scatter_data
         }
 
     except Exception as e:

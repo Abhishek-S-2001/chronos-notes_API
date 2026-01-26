@@ -2,13 +2,13 @@ from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
 
-
-# --- Privacy-Focused Keystroke Model ---
-# No 'key' or 'code' fields. Only pure physics.
+# --- Privacy-Focused Biometric Model ---
 class BiometricData(BaseModel):
-    dwellTime: float  # H
-    flightTime: float # UD
-    downDownTime: float # DD
+    finger: str           # <--- New Feature: "L.Index", "R.Pinky", etc.
+    dwellTime: float      # Physics: Hold Duration
+    flightTime: float     # Physics: Latency (Reflex)
+    timestamp: float      # Time-series data
+    downDownTime: Optional[float] = 0.0 # Kept for backward compatibility
 
 # --- Note CRUD Models ---
 class NoteBase(BaseModel):
@@ -19,7 +19,6 @@ class NoteCreate(NoteBase):
     sessionID: str
     username: str
     platform: Optional[str] = "Web"
-    # The pure mathematical sequence
     biometrics: List[BiometricData] 
 
 class NoteUpdate(BaseModel):
@@ -32,4 +31,3 @@ class NoteResponse(NoteBase):
     username: str
     created_at: datetime
     updated_at: Optional[datetime] = None
-    # We generally don't return the huge biometric log in the list view
