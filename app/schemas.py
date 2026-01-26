@@ -2,26 +2,34 @@ from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
 
-# --- Sub-models ---
-class Keystroke(BaseModel):
-    key: str
-    code: str
-    downTime: float
-    upTime: float
-    dwellTime: float
 
-# --- Request Models (What frontend sends) ---
-class NoteCreateRequest(BaseModel):
+# --- Privacy-Focused Keystroke Model ---
+# No 'key' or 'code' fields. Only pure physics.
+class BiometricData(BaseModel):
+    dwellTime: float  # H
+    flightTime: float # UD
+    downDownTime: float # DD
+
+# --- Note CRUD Models ---
+class NoteBase(BaseModel):
+    title: str
+    content: str
+
+class NoteCreate(NoteBase):
     sessionID: str
     username: str
-    title: str
-    content: str
-    keystrokeLog: List[Keystroke]
     platform: Optional[str] = "Web"
+    # The pure mathematical sequence
+    biometrics: List[BiometricData] 
 
-# --- Response Models (What we send back) ---
-class NoteResponse(BaseModel):
+class NoteUpdate(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+    biometrics: Optional[List[BiometricData]] = None
+
+class NoteResponse(NoteBase):
     id: str
-    title: str
-    content: str
+    username: str
     created_at: datetime
+    updated_at: Optional[datetime] = None
+    # We generally don't return the huge biometric log in the list view
