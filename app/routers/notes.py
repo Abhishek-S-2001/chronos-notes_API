@@ -3,10 +3,13 @@ from bson import ObjectId
 from app.database import get_db
 from app.schemas import NoteCreate, NoteUpdate
 from datetime import datetime
+
 from app.biometric_engine import BiometricBrain
+from app.context_engine import ContextAnalyzer
 
 router = APIRouter(prefix="/api/notes", tags=["Notes"])
 brain = BiometricBrain()
+context_engine = ContextAnalyzer()
 
 def silent_model_adaptation(username: str, db):
     """
@@ -64,6 +67,11 @@ def create_note(note: NoteCreate, background_tasks: BackgroundTasks, db = Depend
         risk_data = {"status": "Unverified", "risk": 0}
         db_vector = None
         
+        # --- NEW: Evaluate Contextual Risk (CP) ---
+        cp_scores = {"IP": 0.05, "GEO": 0.05, "BT": 0.05, "CP_TOTAL": 0.05}
+        if note.context:
+            cp_scores = context_engine.evaluate_live_context(note.username, note.context.dict())
+
         if note.biometrics and isinstance(note.biometrics, list) and len(note.biometrics) > 0:
             # Check if it's an array of chunks (List[List[float]]) or a single chunk (List[float])
             if isinstance(note.biometrics[0], list):
@@ -78,6 +86,9 @@ def create_note(note: NoteCreate, background_tasks: BackgroundTasks, db = Depend
             if evaluate_vector:
                 # Verify against the user's trained model
                 risk_data = brain.verify_live_data(note.username, evaluate_vector)
+
+                # --- Attach CP data to the final risk output ---
+                risk_data["context_scores"] = cp_scores
                 note_entry["risk_analysis"] = risk_data
         
         # Insert Note

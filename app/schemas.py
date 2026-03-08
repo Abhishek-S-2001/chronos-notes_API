@@ -2,6 +2,14 @@ from pydantic import BaseModel
 from typing import List, Optional, Union
 from datetime import datetime
 
+
+# --- Context Data Schema ---
+class ContextData(BaseModel):
+    ip: str
+    geo: str
+    user_agent: str
+    screen: str
+
 # --- Biometric Data Models ---
 
 # (Optional) Keep this for legacy support or detailed logging if needed
@@ -23,18 +31,14 @@ class NoteCreate(BaseModel):
     title: str
     content: str
     platform: Optional[str] = "Web"
-    
     biometrics: Union[List[float], List[List[float]], List[BiometricData]]
-    
     sensitivity: Optional[int] = 5
+    context: Optional[ContextData] = None
 
 class NoteUpdate(BaseModel):
     title: Optional[str] = None
     content: Optional[str] = None
-    
-    # FIX: Same here
     biometrics: Optional[Union[List[float], List[BiometricData]]] = None
-    
     sensitivity: Optional[int] = None
 
 class NoteResponse(NoteBase):
